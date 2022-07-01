@@ -331,17 +331,89 @@ pub mod model{
     }
 
     impl Tree<Value>{
+        pub fn evaluate_it3(&mut self) -> Result<f64, EvalError>{
+            self.select_root();
+            let mut stack: Vec<(NonNull<Node<Value>>, Option<f64>, Option<f64>)> = Vec::new();
+            let mut depth = 0;
+
+            loop{
+                if let Ok(Some(val)) = self.get_current(){
+                    match val{
+                        Value::Value(num) => {
+                            if depth == 0{
+                                return Ok(num.clone());
+                            }
+                            depth -= 1;
+                            let frame = stack.get_mut(depth);
+                            match frame{
+                                Some((_, Some(_), None)) => {
+                                    frame.unwrap().2 = Some(num.clone());
+                                },
+                                Some((_,None, None)) => {
+                                    frame.unwrap().1 = Some(num.clone());
+                                },
+                                _ => {
+                                    return Err(EvalError::BadTree);
+                                }
+                            }
+                            self.current = Some(stack.last().unwrap().0);
+                            continue;
+                        },
+                        Value::Operator(op) => {
+                            if stack.len() < depth + 1 {
+                                stack.push((self.current.unwrap(), None, None));
+                                depth += 1;
+                                let _ = self.go_left();
+                                continue;
+                            }
+                            let frame = stack.get_mut(depth);
+                            match frame{
+                                Some((_, Some(_), None)) => {
+                                    let _ = self.go_right();
+                                    depth += 1;
+                                    continue;
+                                },
+                                Some((_,Some(left), Some(right))) => {
+                                    let eval_val = op.evaluate(left.clone(), right.clone());
+                                    if stack.len() == 1{
+                                        return Ok(eval_val);
+                                    }
+                                    let frame = stack.get_mut(depth - 1);
+                                    match frame{
+                                        Some((_, Some(_), None)) => {
+                                            frame.unwrap().2 = Some(eval_val);
+                                        },
+                                        Some((_,None, None)) => {
+                                            frame.unwrap().1 = Some(eval_val);
+                                        },
+                                        _ => {
+                                            return Err(EvalError::BadTree);
+                                        }
+                                    }
+                                    stack.remove(depth);
+                                    depth -= 1;
+                                    self.current = Some(stack.get(depth).unwrap().0);
+                                    
+                                    continue;
+                                },
+                                _ => {
+                                    return Err(EvalError::BadTree);
+                                }
+                            }
+                        }
+                    }
+                }else{
+                    return Err(EvalError::BadTree);
+                }
+            }
+        }
+
         pub fn evaluate_it2(&mut self) -> Result<f64, EvalError>{
             let mut ptr_stack: Vec<NonNull<Node<Value>>> = Vec::new();
-            // let mut val_buffer: Option<f64> = None;
             let mut buf_len = 0;
             let mut val_buffer = [0f64;2];
             self.select_root();
-            // let mut left_buffer = 0f64;
-            // let mut right_buffer = 0f64;
-            loop{
-                // println!("len: {} ",buf_len);
-                
+            loop{             
                 if let Ok(Some(val_ref)) = self.get_current(){
                     let val = val_ref.clone();
                     match val{
@@ -349,33 +421,20 @@ pub mod model{
                         Value::Operator(op) => {
                             if let (Ok(Some(left_val_ref)), Ok(Some(right_val_ref)))
                                      = (self.get_left(), self.get_right()){
-                                // println!("  {}",right_val_ref);
-                                // println!("{}",op);
-                                // println!("  {}",left_val_ref);
                                 let left_val = left_val_ref.clone();
                                 let right_val = right_val_ref.clone();
                                 match (left_val, right_val){
                                     (Value::Value(left_f64), Value::Value(right_f64)) => {
-                                        // println!("{} {}",left_f64, right_f64);
                                         val_buffer[buf_len] = op.evaluate(left_f64, right_f64);
                                         buf_len += 1;
-                                        // for i in val_buffer{
-                                        //     print!("{} ",i);
-                                        // }
-                                        // println!("");
                                         match ptr_stack.pop(){
                                             Some(prev) => self.current = Some(prev),
                                             None => break
                                         };
                                     },
                                     (Value::Operator(_),Value::Value(right_f64)) => {
-                                        // println!("{}", right_f64);
                                         if buf_len > 0 {
                                             val_buffer[buf_len - 1] = op.evaluate(val_buffer[buf_len - 1], right_f64);
-                                            // for i in val_buffer{
-                                            //     print!("{} ",i);
-                                            // }
-                                            // println!("");
                                             self.current = ptr_stack.pop();
                                         }else{
                                             ptr_stack.push(self.current.unwrap());
@@ -385,13 +444,7 @@ pub mod model{
                                     (Value::Value(left_f64),Value::Operator(_)) => {
                                         
                                         if buf_len > 0 {
-                                            // println!("v op {} {}", left_f64, val_buffer[buf_len]);
                                             val_buffer[buf_len - 1] = op.evaluate(left_f64, val_buffer[buf_len - 1]);
-                                            
-                                            // for i in val_buffer{
-                                            //     print!("{} ",i);
-                                            // }
-                                            // println!("");
                                             match ptr_stack.pop(){
                                                 Some(prev) => self.current = Some(prev),
                                                 None => break
@@ -410,10 +463,6 @@ pub mod model{
                                                 dir = 1;
                                             }
                                             val_buffer[dir] = op.evaluate(val_buffer[0], val_buffer[1]);
-                                            // for i in val_buffer{
-                                            //     print!("{} ",i);
-                                            // }
-                                            // println!("");
                                             match ptr_stack.pop(){
                                                 Some(prev) => self.current = Some(prev),
                                                 None => break
@@ -779,19 +828,25 @@ pub mod model{
         tree.display_tree();
         let start = time::Instant::now();
         match tree.rec_evaluate(){
-            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_micros()),
+            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_nanos()),
             Err(e) => println!("{}",e)
         }
         
         let start = time::Instant::now();
         match tree.evaluate_it1(){
-            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_micros()),
+            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_nanos()),
             Err(e) => println!("{}",e)
         }
 
         let start = time::Instant::now();
         match tree.evaluate_it2(){
-            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_micros()),
+            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_nanos()),
+            Err(e) => println!("{}",e)
+        }
+
+        let start = time::Instant::now();
+        match tree.evaluate_it3(){
+            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_nanos()),
             Err(e) => println!("{}",e)
         }
         
