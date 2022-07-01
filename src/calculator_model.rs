@@ -815,38 +815,38 @@ pub mod model{
 
     pub fn test() -> Result<(), TreeError>{
         let mut tree:Tree<Value> = Tree::new();
-        tree.set_current(Value::Operator(Operator::Mult));
-        tree.set_child_right(Value::Operator(Operator::Mult))?;
+        tree.set_current(Value::Operator(Operator::Plus));
+        tree.set_child_right(Value::Operator(Operator::Plus))?;
         tree.set_child_left(Value::Value(2f64))?;
-        for _ in 0..5{
+        for _ in 0..10{
             tree.go_right()?;
         tree.set_child_left(Value::Value(2f64))?;
-        tree.set_child_right(Value::Operator(Operator::Mult))?;
+        tree.set_child_right(Value::Operator(Operator::Plus))?;
         }
         tree.set_child_right(Value::Value(2f64))?;
         
-        tree.display_tree();
+        // tree.display_tree();
         let start = time::Instant::now();
         match tree.rec_evaluate(){
-            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_nanos()),
+            Ok(num) => println!("{}, elapsed time in ns {}",num, start.elapsed().as_nanos()),
             Err(e) => println!("{}",e)
         }
         
         let start = time::Instant::now();
         match tree.evaluate_it1(){
-            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_nanos()),
+            Ok(num) => println!("{}, elapsed time in ns {}",num, start.elapsed().as_nanos()),
             Err(e) => println!("{}",e)
         }
 
         let start = time::Instant::now();
         match tree.evaluate_it2(){
-            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_nanos()),
+            Ok(num) => println!("{}, elapsed time in ns {}",num, start.elapsed().as_nanos()),
             Err(e) => println!("{}",e)
         }
 
         let start = time::Instant::now();
         match tree.evaluate_it3(){
-            Ok(num) => println!("{}, elapsed time in ms {}",num, start.elapsed().as_nanos()),
+            Ok(num) => println!("{}, elapsed time in ns {}",num, start.elapsed().as_nanos()),
             Err(e) => println!("{}",e)
         }
         
